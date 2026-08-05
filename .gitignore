@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets / environment
+.env
+
+# Databases
+*.db
+*.sqlite3
+
+# Vector index
+.faiss/
+
+# Caches / tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.streamlit/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

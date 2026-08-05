@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-ecommerce-copilot"
+version = "0.1.0"
+description = "An agentic e-commerce support & sales copilot (synthetic-data portfolio project)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Your Name" }]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "streamlit>=1.33",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "sqlalchemy>=2.0",
+    "httpx>=0.27",
+    "pandas>=2.2",
+    "numpy>=1.26",
+]
+
+# Heavy ML deps live in an optional group so the base install stays fast.
+# Install everything with:  pip install -e ".[retrieval,dev]"
+[project.optional-dependencies]
+retrieval = [
+    "sentence-transformers>=2.7",
+    "faiss-cpu>=1.8",
+]
+dev = [
+    "ruff>=0.4",
+    "black>=24.0",
+    "pytest>=8.0",
+    "pre-commit>=3.7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/copilot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E/F = pycodestyle+pyflakes, I = import sorting, UP = pyupgrade, B = bugbear
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
