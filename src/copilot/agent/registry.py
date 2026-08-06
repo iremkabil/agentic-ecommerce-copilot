@@ -11,10 +11,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from pydantic import ValidationError
+
 from copilot.agent.context import AgentContext
+from copilot.agent.schemas import OrderDraft
 from copilot.llm.base import ToolSpec
 from copilot.tools.faq_retrieval import faq_retrieval
 from copilot.tools.order_status import get_order_status
+from copilot.tools.orders import create_order_draft, detect_missing_fields, extract_order_fields
 from copilot.tools.product_search import get_product_details, search_products
 from copilot.tools.shipping import shipping_calculator
 
@@ -77,6 +81,49 @@ def _exec_get_order_status(args: dict, ctx: AgentContext) -> dict:
     if not order_id or not email:
         return {"error": "missing_required_argument", "argument": "order_id/email"}
     return get_order_status(ctx.session, order_id=order_id, email=email)
+
+
+def _parse_draft(value: object) -> tuple[OrderDraft | None, dict | None]:
+    """Best-effort parse of a model-supplied draft object into an OrderDraft.
+
+    Returns (draft, None) on success or (None, error_dict) on failure -- args
+    come from the model, not a trusted client, so a malformed draft must
+    become a tool error rather than an exception.
+    """
+    if not isinstance(value, dict):
+        return None, {"error": "invalid_draft", "detail": "draft must be an object"}
+    try:
+        return OrderDraft.model_validate(value), None
+    except ValidationError as exc:
+        return None, {"error": "invalid_draft", "detail": str(exc)}
+
+
+def _exec_extract_order_fields(args: dict, ctx: AgentContext) -> dict:
+    current, error = (None, None)
+    if args.get("current_draft"):
+        current, error = _parse_draft(args["current_draft"])
+        if error:
+            return error
+    draft = extract_order_fields(args, current)
+    return draft.model_dump()
+
+
+def _exec_detect_missing_fields(args: dict, ctx: AgentContext) -> dict:
+    if not args.get("draft"):
+        return {"error": "missing_required_argument", "argument": "draft"}
+    draft, error = _parse_draft(args["draft"])
+    if error:
+        return error
+    return {"missing_fields": detect_missing_fields(draft)}
+
+
+def _exec_create_order_draft(args: dict, ctx: AgentContext) -> dict:
+    if not args.get("draft"):
+        return {"error": "missing_required_argument", "argument": "draft"}
+    draft, error = _parse_draft(args["draft"])
+    if error:
+        return error
+    return create_order_draft(ctx.session, draft, conversation_id=ctx.conversation_id)
 
 
 # --- tool specs (JSON Schema the model sees) -------------------------------
@@ -167,5 +214,90 @@ def build_default_tools() -> list[Tool]:
                 },
             ),
             func=_exec_get_order_status,
+        ),
+        Tool(
+            spec=ToolSpec(
+                name="extract_order_fields",
+                description="Record or update the customer's in-progress order with any item, "
+                "contact, or shipping details mentioned so far. Pass current_draft (the object "
+                "returned by your last call to this tool) so nothing already known is lost, "
+                "then add any newly-mentioned fields alongside it.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "items": {
+                            "type": "array",
+                            "description": "Line items known so far (include ones already "
+                            "known, not just new ones).",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "product_id": {"type": "string"},
+                                    "quantity": {"type": "integer", "default": 1},
+                                },
+                                "required": ["product_id"],
+                            },
+                        },
+                        "customer_name": {"type": "string"},
+                        "customer_email": {"type": "string"},
+                        "shipping_address_line": {"type": "string"},
+                        "shipping_city": {"type": "string"},
+                        "shipping_postal_code": {"type": "string"},
+                        "shipping_country": {
+                            "type": "string",
+                            "description": "ISO country code, e.g. US, DE, FR.",
+                        },
+                        "shipping_method": {
+                            "type": "string",
+                            "enum": ["standard", "express"],
+                            "default": "standard",
+                        },
+                        "current_draft": {
+                            "type": "object",
+                            "description": "The draft object returned by your previous "
+                            "extract_order_fields call, if any.",
+                        },
+                    },
+                },
+            ),
+            func=_exec_extract_order_fields,
+        ),
+        Tool(
+            spec=ToolSpec(
+                name="detect_missing_fields",
+                description="Given a draft from extract_order_fields, list which required "
+                "fields (items, name, email, shipping address, shipping country) are still "
+                "empty. Call this before create_order_draft.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "draft": {
+                            "type": "object",
+                            "description": "The draft object returned by extract_order_fields.",
+                        }
+                    },
+                    "required": ["draft"],
+                },
+            ),
+            func=_exec_detect_missing_fields,
+        ),
+        Tool(
+            spec=ToolSpec(
+                name="create_order_draft",
+                description="Save a complete order draft. Only call this after "
+                "detect_missing_fields returns an empty list for this draft.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "draft": {
+                            "type": "object",
+                            "description": "The complete draft object returned by "
+                            "extract_order_fields.",
+                        }
+                    },
+                    "required": ["draft"],
+                },
+            ),
+            func=_exec_create_order_draft,
         ),
     ]

@@ -132,7 +132,12 @@ def handle_chat(
         session.flush()  # assign the conversation id
 
     history = _load_history(session, conversation.id)
-    ctx = AgentContext(session=session, product_index=product_index, faq_index=faq_index)
+    ctx = AgentContext(
+        session=session,
+        product_index=product_index,
+        faq_index=faq_index,
+        conversation_id=conversation.id,
+    )
 
     intent = classify_intent(
         request.message, llm=llm, confidence_threshold=settings.intent_confidence_threshold

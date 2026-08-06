@@ -19,3 +19,7 @@ class AgentContext:
     session: Session
     product_index: VectorIndex
     faq_index: VectorIndex
+    # Set when a conversation already exists, so create_order_draft can link
+    # the Order back to it. None in contexts built before a conversation id
+    # is known (e.g. direct orchestrator tests).
+    conversation_id: str | None = None

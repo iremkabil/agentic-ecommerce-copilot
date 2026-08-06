@@ -18,7 +18,7 @@ See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design, roadmap, and e
 🚧 In development, following the 14-day build timeline in
 [PROJECT_PLAN.md §11](./PROJECT_PLAN.md#11-development-timeline-1014-days) (full V1/V2 scope in
 [§10 Roadmap](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2)). **✅ MVP complete (Day 5).** Currently
-on **Day 7 of 14** — Days 8–14 (orders, guardrails, eval harness, admin dashboard, polish)
+on **Day 8 of 14** — Days 9–14 (guardrails, eval harness, admin dashboard, polish)
 remain. A working agent answers grounded questions end to end via `POST /chat`.
 - **Day 1:** scaffold, configuration, Docker, health check.
 - **Day 2:** SQLAlchemy models (10 tables), DB session, seed script, synthetic data.
@@ -34,6 +34,11 @@ remain. A working agent answers grounded questions end to end via `POST /chat`.
   predictions are flagged explicitly (`COPILOT_INTENT_CONFIDENCE_THRESHOLD`) for Day 9's
   handoff logic. Wired into `handle_chat`, so every user message is logged with its
   `intent`/`intent_confidence` in the `messages` table.
+- **Day 8:** order flow — `OrderDraft` schema (`agent/schemas.py`) plus three new tools
+  (`tools/orders.py`): `extract_order_fields`, `detect_missing_fields`, `create_order_draft`.
+  Slot filling needs no special-case state machine — the model re-states what it already
+  knows from its own conversation history each turn; only `create_order_draft` touches the
+  DB, persisting an `Order` + `OrderItem`s + `Customer` once every required field is present.
 
 Try it:
 
