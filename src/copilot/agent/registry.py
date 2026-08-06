@@ -17,6 +17,7 @@ from copilot.agent.context import AgentContext
 from copilot.agent.schemas import OrderDraft
 from copilot.llm.base import ToolSpec
 from copilot.tools.faq_retrieval import faq_retrieval
+from copilot.tools.handoff import human_handoff
 from copilot.tools.order_status import get_order_status
 from copilot.tools.orders import create_order_draft, detect_missing_fields, extract_order_fields
 from copilot.tools.product_search import get_product_details, search_products
@@ -126,10 +127,26 @@ def _exec_create_order_draft(args: dict, ctx: AgentContext) -> dict:
     return create_order_draft(ctx.session, draft, conversation_id=ctx.conversation_id)
 
 
+def _exec_human_handoff(args: dict, ctx: AgentContext) -> dict:
+    reason = (args.get("reason") or "").strip()
+    if not reason:
+        return {"error": "missing_required_argument", "argument": "reason"}
+    if not ctx.conversation_id:
+        return {"error": "no_active_conversation"}
+    return human_handoff(
+        ctx.session,
+        conversation_id=ctx.conversation_id,
+        reason=reason,
+        trigger_type=args.get("trigger_type", "user_request"),
+        summary=args.get("summary", ""),
+        priority=args.get("priority", "medium"),
+    )
+
+
 # --- tool specs (JSON Schema the model sees) -------------------------------
 
 def build_default_tools() -> list[Tool]:
-    """Return the MVP tool set. (Order-draft + handoff tools are added later.)"""
+    """Return the full V1 tool set (product/FAQ/shipping/orders + handoff)."""
     return [
         Tool(
             spec=ToolSpec(
@@ -299,5 +316,39 @@ def build_default_tools() -> list[Tool]:
                 },
             ),
             func=_exec_create_order_draft,
+        ),
+        Tool(
+            spec=ToolSpec(
+                name="human_handoff",
+                description="Escalate this conversation to a human team member. Use this when "
+                "the customer is abusive/threatening, has a serious complaint (e.g. damaged or "
+                "wrong item), or asks a policy question faq_retrieval can't answer.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": "Short reason for the escalation.",
+                        },
+                        "trigger_type": {
+                            "type": "string",
+                            "enum": ["user_request", "guardrail", "low_confidence", "policy"],
+                            "default": "user_request",
+                        },
+                        "summary": {
+                            "type": "string",
+                            "description": "One or two sentences a human agent can read to "
+                            "pick up the conversation.",
+                        },
+                        "priority": {
+                            "type": "string",
+                            "enum": ["low", "medium", "high"],
+                            "default": "medium",
+                        },
+                    },
+                    "required": ["reason"],
+                },
+            ),
+            func=_exec_human_handoff,
         ),
     ]

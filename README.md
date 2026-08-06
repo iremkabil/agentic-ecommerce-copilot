@@ -18,8 +18,8 @@ See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design, roadmap, and e
 🚧 In development, following the 14-day build timeline in
 [PROJECT_PLAN.md §11](./PROJECT_PLAN.md#11-development-timeline-1014-days) (full V1/V2 scope in
 [§10 Roadmap](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2)). **✅ MVP complete (Day 5).** Currently
-on **Day 8 of 14** — Days 9–14 (guardrails, eval harness, admin dashboard, polish)
-remain. A working agent answers grounded questions end to end via `POST /chat`.
+on **Day 9 of 14** — Days 10–14 (eval harness, admin dashboard, polish) remain. A working
+agent answers grounded questions end to end via `POST /chat`.
 - **Day 1:** scaffold, configuration, Docker, health check.
 - **Day 2:** SQLAlchemy models (10 tables), DB session, seed script, synthetic data.
 - **Day 3:** retrieval layer (pluggable embedder + vector index) and product/FAQ tools.
@@ -39,6 +39,15 @@ remain. A working agent answers grounded questions end to end via `POST /chat`.
   Slot filling needs no special-case state machine — the model re-states what it already
   knows from its own conversation history each turn; only `create_order_draft` touches the
   DB, persisting an `Order` + `OrderItem`s + `Customer` once every required field is present.
+- **Day 9:** rule-based input/output guardrails (`guardrails/input_rules.py`,
+  `output_rules.py`) and an escalation matrix (`guardrails/escalation.py`) wired into
+  `handle_chat`: jailbreak/PII/abuse/out-of-scope messages are blocked or escalated before
+  the classifier or orchestrator ever run; drafted replies are checked for ungrounded
+  prices/policy promises and prompt/tool-name leakage before they ship. `tools/handoff.py`
+  persists `HandoffCase`s (and marks the conversation `handed_off`) both automatically
+  (explicit human request, low-confidence intent, escalating input rules) and via a
+  `human_handoff` tool the model can call itself for complaints/uncovered policy questions.
+  Every guardrail decision is logged to `guardrail_events`.
 
 Try it:
 
