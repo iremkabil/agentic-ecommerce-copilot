@@ -46,7 +46,8 @@ _ABUSE_PATTERNS = [
 ]
 
 _JAILBREAK_PATTERNS = [
-    re.compile(r"\bignore\s+(your|all|any|previous|the)\s+(instructions|rules|prompt)\b", re.I),
+    # allow a few filler words so "ignore all previous instructions" matches too
+    re.compile(r"\bignore\s+(?:\w+\s+){0,3}(instructions|rules|prompt)\b", re.I),
     re.compile(r"\b(reveal|print|show)\s+(your\s+)?(system\s+prompt|instructions)\b", re.I),
     re.compile(r"\bact\s+as\s+(if\s+you|a).*\bwithout\s+(restrictions|rules|limits)\b", re.I),
     re.compile(r"\bdeveloper\s+mode\b", re.I),
@@ -64,7 +65,11 @@ _PROHIBITED_ADVICE_PATTERNS = [
 _CARD_NUMBER_RE = re.compile(r"\b(?:\d[ -]?){13,19}\b")
 
 _OUT_OF_SCOPE_PATTERNS = [
-    re.compile(r"\bwrite\s+(my|me\s+a)\s+(essay|homework|r[ée]sum[ée]|cover letter)\b", re.I),
+    # allow a filler word or two, e.g. "write my college essay"
+    re.compile(
+        r"\bwrite\s+(my|me\s+a)\s+(?:\w+\s+){0,2}(essay|homework|r[ée]sum[ée]|cover letter)\b",
+        re.I,
+    ),
     re.compile(r"\bwrite\s+(a\s+)?(poem|song|story)\s+about\b", re.I),
     re.compile(r"\bsolve\s+this\s+math\b", re.I),
 ]

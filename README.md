@@ -18,8 +18,8 @@ See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design, roadmap, and e
 🚧 In development, following the 14-day build timeline in
 [PROJECT_PLAN.md §11](./PROJECT_PLAN.md#11-development-timeline-1014-days) (full V1/V2 scope in
 [§10 Roadmap](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2)). **✅ MVP complete (Day 5).** Currently
-on **Day 9 of 14** — Days 10–14 (eval harness, admin dashboard, polish) remain. A working
-agent answers grounded questions end to end via `POST /chat`.
+on **Day 10 of 14** — Days 11–14 (more eval metrics, admin dashboard, polish) remain. A
+working agent answers grounded questions end to end via `POST /chat`.
 - **Day 1:** scaffold, configuration, Docker, health check.
 - **Day 2:** SQLAlchemy models (10 tables), DB session, seed script, synthetic data.
 - **Day 3:** retrieval layer (pluggable embedder + vector index) and product/FAQ tools.
@@ -48,6 +48,13 @@ agent answers grounded questions end to end via `POST /chat`.
   (explicit human request, low-confidence intent, escalating input rules) and via a
   `human_handoff` tool the model can call itself for complaints/uncovered policy questions.
   Every guardrail decision is logged to `guardrail_events`.
+- **Day 10:** evaluation harness (metrics 1-3) — `data/test_cases.csv` (71 hand-authored,
+  grounded rows across all 9 intents plus jailbreak/PII/abuse/prohibited-advice adversarial
+  cases) + `eval/metrics.py` (intent accuracy/macro-F1, tool-selection precision/recall/
+  micro-F1, order completion rate — all pure functions) + `eval/run_eval.py`, which drives
+  the *live* `handle_chat` pipeline per row and prints a summary table
+  (`python -m eval.run_eval`). Metrics 4-6 and persisting runs to `eval_runs`/`eval_results`
+  land Day 11.
 
 Try it:
 
