@@ -26,6 +26,11 @@ questions end to end via `POST /chat`.
 - **Day 6:** Streamlit demo chat UI (`dashboard/chat.py`) — talks to `POST /chat`, keeps
   `conversation_id` in session state across turns, and shows each turn's tool calls in an
   expander. API base URL is configurable (`COPILOT_API_BASE_URL`, editable in the sidebar).
+- **Day 7:** intent classifier (`agent/intent.py`) — a single few-shot LLM call returns a
+  label + confidence for every user message ahead of the tool-calling loop; low-confidence
+  predictions are flagged explicitly (`COPILOT_INTENT_CONFIDENCE_THRESHOLD`) for Day 9's
+  handoff logic. Wired into `handle_chat`, so every user message is logged with its
+  `intent`/`intent_confidence` in the `messages` table.
 
 Try it:
 

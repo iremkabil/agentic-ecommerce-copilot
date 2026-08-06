@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from copilot.agent.context import AgentContext
+from copilot.agent.intent import IntentResult, classify_intent
 from copilot.agent.orchestrator import AgentResult, run_agent
 from copilot.agent.prompts import SYSTEM_PROMPT
 from copilot.agent.registry import build_default_tools
@@ -66,8 +67,22 @@ def _load_history(session: Session, conversation_id: str, limit: int = 20) -> li
     return [ChatMessage(role=r.role, content=r.content) for r in rows[-limit:]]
 
 
-def _persist_turn(session: Session, conversation: Conversation, user_message: str, result: AgentResult) -> None:
-    session.add(Message(conversation_id=conversation.id, role="user", content=user_message))
+def _persist_turn(
+    session: Session,
+    conversation: Conversation,
+    user_message: str,
+    result: AgentResult,
+    intent: IntentResult,
+) -> None:
+    session.add(
+        Message(
+            conversation_id=conversation.id,
+            role="user",
+            content=user_message,
+            intent=intent.label,
+            intent_confidence=intent.confidence,
+        )
+    )
     for step in result.steps:
         session.add(
             Message(
@@ -119,6 +134,10 @@ def handle_chat(
     history = _load_history(session, conversation.id)
     ctx = AgentContext(session=session, product_index=product_index, faq_index=faq_index)
 
+    intent = classify_intent(
+        request.message, llm=llm, confidence_threshold=settings.intent_confidence_threshold
+    )
+
     result = run_agent(
         request.message,
         llm=llm,
@@ -129,7 +148,7 @@ def handle_chat(
         max_steps=settings.max_agent_steps,
     )
 
-    _persist_turn(session, conversation, request.message, result)
+    _persist_turn(session, conversation, request.message, result, intent)
     session.commit()
 
     return ChatResponse(conversation_id=conversation.id, reply=result.reply, steps=result.steps)

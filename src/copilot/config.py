@@ -66,6 +66,8 @@ class Settings(BaseSettings):
 
     # --- Agent ---
     max_agent_steps: int = Field(default=6)
+    # Below this, IntentResult.low_confidence is True (drives Day 9 handoff bias).
+    intent_confidence_threshold: float = Field(default=0.5)
 
     # --- Dashboard/client ---
     # Base URL the Streamlit demo chat (dashboard/chat.py) uses to reach the

@@ -47,7 +47,13 @@ def client():
 
     scripted = ScriptedLLMClient(
         [
-            LLMResponse(tool_calls=[ToolCall(id="1", name="product_search", arguments={"query": "bamboo organizer"})]),
+            # (1) intent classification, then (2)-(3) the orchestrator's tool-call turn
+            LLMResponse(content='{"intent": "product_inquiry", "confidence": 0.9}'),
+            LLMResponse(
+                tool_calls=[
+                    ToolCall(id="1", name="product_search", arguments={"query": "bamboo organizer"})
+                ]
+            ),
             LLMResponse(content="The Bamboo Desk Organizer is $29.00."),
         ]
     )
@@ -76,6 +82,11 @@ def test_chat_endpoint_runs_agent_and_persists(client):
     assert n_messages == 4
     roles = session.scalars(select(Message.role).order_by(Message.id)).all()
     assert roles == ["user", "assistant", "tool", "assistant"]
+
+    # the intent classifier's result was logged on the user message row
+    user_row = session.scalars(select(Message).where(Message.role == "user")).one()
+    assert user_row.intent == "product_inquiry"
+    assert user_row.intent_confidence == pytest.approx(0.9)
 
 
 def test_chat_endpoint_continues_conversation(client):
