@@ -15,8 +15,11 @@ See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design, roadmap, and e
 
 ## Status
 
-🚧 In development. **✅ MVP complete (Day 5).** A working agent answers grounded
-questions end to end via `POST /chat`.
+🚧 In development, following the 14-day build timeline in
+[PROJECT_PLAN.md §11](./PROJECT_PLAN.md#11-development-timeline-1014-days) (full V1/V2 scope in
+[§10 Roadmap](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2)). **✅ MVP complete (Day 5).** Currently
+on **Day 7 of 14** — Days 8–14 (orders, guardrails, eval harness, admin dashboard, polish)
+remain. A working agent answers grounded questions end to end via `POST /chat`.
 - **Day 1:** scaffold, configuration, Docker, health check.
 - **Day 2:** SQLAlchemy models (10 tables), DB session, seed script, synthetic data.
 - **Day 3:** retrieval layer (pluggable embedder + vector index) and product/FAQ tools.
