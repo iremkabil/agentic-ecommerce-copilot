@@ -18,8 +18,8 @@ See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design, roadmap, and e
 🚧 In development, following the 14-day build timeline in
 [PROJECT_PLAN.md §11](./PROJECT_PLAN.md#11-development-timeline-1014-days) (full V1/V2 scope in
 [§10 Roadmap](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2)). **✅ MVP complete (Day 5).** Currently
-on **Day 10 of 14** — Days 11–14 (more eval metrics, admin dashboard, polish) remain. A
-working agent answers grounded questions end to end via `POST /chat`.
+on **Day 11 of 14** — Days 12–14 (admin dashboard, tests/tooling polish, README/demo polish)
+remain. A working agent answers grounded questions end to end via `POST /chat`.
 - **Day 1:** scaffold, configuration, Docker, health check.
 - **Day 2:** SQLAlchemy models (10 tables), DB session, seed script, synthetic data.
 - **Day 3:** retrieval layer (pluggable embedder + vector index) and product/FAQ tools.
@@ -53,8 +53,14 @@ working agent answers grounded questions end to end via `POST /chat`.
   cases) + `eval/metrics.py` (intent accuracy/macro-F1, tool-selection precision/recall/
   micro-F1, order completion rate — all pure functions) + `eval/run_eval.py`, which drives
   the *live* `handle_chat` pipeline per row and prints a summary table
-  (`python -m eval.run_eval`). Metrics 4-6 and persisting runs to `eval_runs`/`eval_results`
-  land Day 11.
+  (`python -m eval.run_eval`).
+- **Day 11:** metrics 4-6 — missing-field detection precision/recall (a new
+  `expected_missing_fields` CSV column, validated offline against `detect_missing_fields`
+  for every place_order case), guardrail block rate / false-positive rate (benign vs.
+  adversarial, via `evaluate_input` — still 0 mismatches across all 71 rows), and handoff
+  precision/recall (via a real `HandoffCase` DB lookup per case). `eval/run_eval.py` now
+  persists every run: one `eval_runs` row (all 6 metrics as JSON) + one `eval_results` row
+  per case (`python -m eval.run_eval --run-name my-run`).
 
 Try it:
 

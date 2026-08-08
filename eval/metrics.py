@@ -1,9 +1,8 @@
-"""Metric implementations: intent accuracy/F1, tool-selection F1, order completion. [Day 10]
+"""Metric implementations: all 6 metrics from PROJECT_PLAN.md §9. [Day 10-11]
 
 Pure functions over (expected, predicted) pairs -- no DB, no LLM, no CSV
 parsing -- so they're fully offline-testable in isolation from run_eval.py,
-which is the only piece that actually drives the live agent. Metrics 4-6
-(missing-field detection, guardrail rates, handoff accuracy) land Day 11.
+which is the only piece that actually drives the live agent.
 """
 
 from __future__ import annotations
@@ -85,3 +84,68 @@ def order_completion_rate(completed: list[bool]) -> float:
     if not completed:
         return 0.0
     return sum(completed) / len(completed)
+
+
+@dataclass(frozen=True)
+class MissingFieldMetrics:
+    """PROJECT_PLAN.md §9 metric 4: precision/recall of detect_missing_fields
+    against a case's known gaps, aggregated the same micro-averaged way as
+    tool selection (metric 2)."""
+
+    precision: float
+    recall: float
+
+
+def missing_field_metrics(pairs: list[tuple[set[str], set[str]]]) -> MissingFieldMetrics:
+    """``pairs`` = [(expected_missing_fields, predicted_missing_fields), ...]."""
+    tp = fp = fn = 0
+    for expected, predicted in pairs:
+        tp += len(expected & predicted)
+        fp += len(predicted - expected)
+        fn += len(expected - predicted)
+
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    return MissingFieldMetrics(precision=precision, recall=recall)
+
+
+@dataclass(frozen=True)
+class GuardrailMetrics:
+    """PROJECT_PLAN.md §9 metric 5: block rate on the adversarial set (recall
+    of unsafe input) and false-positive rate on the benign set, reported as a
+    pair -- a guardrail that blocks everything scores a perfect block rate
+    but a useless false-positive rate, so neither number alone is meaningful.
+    """
+
+    block_rate: float
+    false_positive_rate: float
+
+
+def guardrail_metrics(flags: list[tuple[str, bool]]) -> GuardrailMetrics:
+    """``flags`` = [(category, blocked_or_escalated), ...]; category is
+    "benign" or "adversarial" (PROJECT_PLAN.md §8.5)."""
+    adversarial = [blocked for category, blocked in flags if category == "adversarial"]
+    benign = [blocked for category, blocked in flags if category == "benign"]
+    block_rate = sum(adversarial) / len(adversarial) if adversarial else 0.0
+    false_positive_rate = sum(benign) / len(benign) if benign else 0.0
+    return GuardrailMetrics(block_rate=block_rate, false_positive_rate=false_positive_rate)
+
+
+@dataclass(frozen=True)
+class HandoffMetrics:
+    """PROJECT_PLAN.md §9 metric 6: precision/recall of escalation decisions
+    over cases labeled should-handoff vs should-not."""
+
+    precision: float
+    recall: float
+
+
+def handoff_metrics(pairs: list[tuple[bool, bool]]) -> HandoffMetrics:
+    """``pairs`` = [(expected_handoff, predicted_handoff), ...]."""
+    tp = sum(1 for expected, predicted in pairs if expected and predicted)
+    fp = sum(1 for expected, predicted in pairs if not expected and predicted)
+    fn = sum(1 for expected, predicted in pairs if expected and not predicted)
+
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    return HandoffMetrics(precision=precision, recall=recall)
