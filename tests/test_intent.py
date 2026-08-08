@@ -8,7 +8,7 @@ from copilot.agent.intent import (
     _parse_intent_content,
     classify_intent,
 )
-from copilot.llm.base import ChatMessage, LLMResponse
+from copilot.llm.base import ChatMessage, LLMProviderError, LLMResponse
 from copilot.llm.providers import ScriptedLLMClient
 
 
@@ -101,3 +101,17 @@ def test_classify_intent_history_is_not_required():
     result = classify_intent("hello", llm=llm)
     assert result.label == "greeting"
     assert isinstance(llm.calls[0]["messages"][1], ChatMessage)
+
+
+class _UnreachableLLM:
+    """A minimal LLMClient double that simulates the provider being down."""
+
+    def chat(self, messages, tools=None, temperature=None):
+        raise LLMProviderError("connection refused")
+
+
+def test_classify_intent_degrades_gracefully_when_provider_is_unreachable():
+    result = classify_intent("hello", llm=_UnreachableLLM())
+    assert result.label == UNKNOWN_INTENT
+    assert result.confidence == 0.0
+    assert result.low_confidence is True

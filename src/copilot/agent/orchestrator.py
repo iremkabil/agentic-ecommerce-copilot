@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from copilot.agent.context import AgentContext
 from copilot.agent.registry import Tool
 from copilot.agent.schemas import AgentStep
-from copilot.llm.base import ChatMessage, LLMClient, ToolSpec
+from copilot.llm.base import ChatMessage, LLMClient, LLMProviderError, ToolSpec
 
 _FALLBACK_REPLY = (
     "I'm having trouble completing that right now. Let me connect you with a human agent."
@@ -76,14 +76,22 @@ def run_agent(
     start = time.perf_counter()
 
     for _ in range(max_steps):
-        response = llm.chat(messages, tools=tool_specs)
+        try:
+            response = llm.chat(messages, tools=tool_specs)
+        except LLMProviderError:
+            # provider unreachable mid-turn -- degrade to the same safe
+            # fallback as a stuck loop, keeping whatever steps already ran
+            reply = _FALLBACK_REPLY
+            break
         prompt_tokens += response.usage.prompt_tokens
         completion_tokens += response.usage.completion_tokens
 
         if response.tool_calls:
             # record the model's tool-call turn, then execute each call
             messages.append(
-                ChatMessage(role="assistant", content=response.content, tool_calls=response.tool_calls)
+                ChatMessage(
+                    role="assistant", content=response.content, tool_calls=response.tool_calls
+                )
             )
             for call in response.tool_calls:
                 result = _run_tool(tools_by_name.get(call.name), call.name, call.arguments, ctx)

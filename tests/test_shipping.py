@@ -17,9 +17,9 @@ DATA = Path(__file__).resolve().parents[1] / "data"
 
 def test_resolve_zone():
     assert resolve_zone("US") == "domestic"
-    assert resolve_zone("us") == "domestic"          # case-insensitive
+    assert resolve_zone("us") == "domestic"  # case-insensitive
     assert resolve_zone("DE") == "international"
-    assert resolve_zone("JP") is None                # unsupported
+    assert resolve_zone("JP") is None  # unsupported
 
 
 def test_domestic_standard_flat_rate():
@@ -78,7 +78,10 @@ def test_shipping_calculator_uses_db_weights_and_prices(session):
     result = shipping_calculator(
         session,
         destination_country="US",
-        items=[{"product_id": "PB-NB-001", "quantity": 2}, {"product_id": "PB-ORG-007", "quantity": 1}],
+        items=[
+            {"product_id": "PB-NB-001", "quantity": 2},
+            {"product_id": "PB-ORG-007", "quantity": 1},
+        ],
         method="standard",
     )
     assert result["subtotal"] == 58.80

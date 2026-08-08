@@ -27,6 +27,18 @@ def test_empty_text_gives_zero_vector():
     assert float(np.linalg.norm(v[0])) == 0.0  # no divide-by-zero blow-up
 
 
+def test_vector_index_search_on_empty_index_returns_empty_list():
+    idx = VectorIndex(HashingEmbedder(dim=64))
+    assert idx.search("anything", k=5) == []  # no documents added yet -- no crash
+
+
+def test_vector_index_add_empty_list_is_a_no_op():
+    idx = VectorIndex(HashingEmbedder(dim=64))
+    idx.add([])
+    assert idx.documents == []
+    assert idx.search("anything") == []
+
+
 def test_vector_index_ranks_relevant_document_first():
     idx = VectorIndex(HashingEmbedder(dim=512))
     idx.add(

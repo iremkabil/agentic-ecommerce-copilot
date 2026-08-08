@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from copilot.llm.base import ChatMessage, LLMResponse, ToolCall, ToolSpec, Usage
+from copilot.llm.base import ChatMessage, LLMProviderError, LLMResponse, ToolCall, ToolSpec, Usage
 
 
 def messages_to_wire(messages: list[ChatMessage]) -> list[dict]:
@@ -115,13 +115,18 @@ class OpenAICompatibleClient:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        resp = httpx.post(
-            f"{self.base_url}/chat/completions",
-            json=payload,
-            headers=headers,
-            timeout=self.timeout,
-        )
-        resp.raise_for_status()
+        try:
+            resp = httpx.post(
+                f"{self.base_url}/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            # network failure, timeout, or non-2xx -- one provider-agnostic
+            # error so callers never need to know this client uses httpx.
+            raise LLMProviderError(f"LLM provider request failed: {exc}") from exc
         return parse_response(resp.json())
 
 

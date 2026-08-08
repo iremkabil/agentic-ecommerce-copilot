@@ -28,9 +28,7 @@ from copilot.db.models import Base
 
 settings = get_settings()
 
-_connect_args = (
-    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-)
+_connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 
 engine = create_engine(
     settings.database_url,

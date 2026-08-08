@@ -693,20 +693,29 @@ Structure the README so a recruiter grasps it in under a minute, then can go dee
 
 ## 14. Resume / LinkedIn Descriptions
 
+> Updated Day 14 to match what was actually built (V1 shipped a hand-written native
+> tool-calling loop, not LangGraph, and numpy exact search by default with FAISS wired as an
+> optional, undemonstrated backend) — the original draft below predates any code and
+> overclaimed both. Never publish resume copy that names a technology the shipped system
+> doesn't actually use; an interviewer will ask about it.
+
 **Resume — one-line (concise)**
-> Built an agentic e-commerce support & sales copilot (Python, FastAPI, LangGraph) with
-> intent classification, RAG-grounded tool calling, order drafting, safety guardrails, and a
+> Built an agentic e-commerce support & sales copilot (Python, FastAPI) with intent
+> classification, RAG-grounded tool calling, order drafting, safety guardrails, and a
 > 6-metric evaluation harness — on fully synthetic data.
 
 **Resume — bullet form**
-- Designed and built an LLM **agent** with native function calling / LangGraph orchestrating
-  8 tools (product search, FAQ/policy RAG, shipping, order drafting, handoff).
-- Implemented **RAG** over a product catalog and policy docs using sentence-transformers +
-  FAISS for grounded, hallucination-resistant answers.
+- Designed and built an LLM **agent** with a hand-written native function-calling loop
+  orchestrating 9 tools (product search, FAQ/policy RAG, shipping, order status, order
+  drafting, human handoff).
+- Implemented **RAG** over a product catalog and policy docs using sentence-transformers
+  embeddings and a vector index (exact numpy search, FAISS-ready) for grounded,
+  hallucination-resistant answers.
 - Added **input/output guardrails** and a human-handoff escalation path; logged every
   decision for observability.
-- Built an **evaluation suite** (intent accuracy/F1, tool-selection F1, order-completion rate,
-  guardrail block & false-positive rates, handoff accuracy) with results persisted and
+- Built a **6-metric evaluation suite** (intent accuracy/macro-F1, tool-selection
+  precision/recall/F1, order-completion rate, missing-field precision/recall, guardrail
+  block/false-positive rates, handoff precision/recall) with results persisted per run and
   visualized in a Streamlit dashboard.
 - Emphasized **ethical, fully synthetic data**; documented the entire system for reproducibility.
 
@@ -716,8 +725,8 @@ Structure the README so a recruiter grasps it in under a minute, then can go dee
 > orders while validating missing fields, blocks unsafe or out-of-policy responses with
 > guardrails, and hands off to a human when needed. Everything runs on **synthetic data** for a
 > fictional brand, and every behavior is **measured** by a 6-metric evaluation harness with a
-> live dashboard. Stack: Python, FastAPI, LangGraph, Pydantic, FAISS + sentence-transformers,
-> SQLite/SQLAlchemy, Streamlit, Docker. Code + write-up on GitHub 👉 [link]
+> live dashboard. Stack: Python, FastAPI, Pydantic, sentence-transformers + numpy vector
+> search, SQLite/SQLAlchemy, Streamlit, Docker. Code + write-up on GitHub 👉 [link]
 > #AIEngineering #LLM #Agents #RAG #Python
 
 ---

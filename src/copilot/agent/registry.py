@@ -8,8 +8,8 @@ rather than trusting the input.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from pydantic import ValidationError
 
@@ -32,6 +32,7 @@ class Tool:
 
 # --- executors -------------------------------------------------------------
 
+
 def _exec_product_search(args: dict, ctx: AgentContext) -> dict:
     query = (args.get("query") or "").strip()
     if not query:
@@ -53,7 +54,9 @@ def _exec_get_product_details(args: dict, ctx: AgentContext) -> dict:
     if not product_id:
         return {"error": "missing_required_argument", "argument": "product_id"}
     details = get_product_details(ctx.session, product_id)
-    return details if details is not None else {"error": "product_not_found", "product_id": product_id}
+    return (
+        details if details is not None else {"error": "product_not_found", "product_id": product_id}
+    )
 
 
 def _exec_faq_retrieval(args: dict, ctx: AgentContext) -> dict:
@@ -145,6 +148,7 @@ def _exec_human_handoff(args: dict, ctx: AgentContext) -> dict:
 
 # --- tool specs (JSON Schema the model sees) -------------------------------
 
+
 def build_default_tools() -> list[Tool]:
     """Return the full V1 tool set (product/FAQ/shipping/orders + handoff)."""
     return [
@@ -156,7 +160,10 @@ def build_default_tools() -> list[Tool]:
                 parameters={
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "What the customer is looking for."},
+                        "query": {
+                            "type": "string",
+                            "description": "What the customer is looking for.",
+                        },
                         "category": {"type": "string"},
                         "max_price": {"type": "number"},
                         "tags": {"type": "array", "items": {"type": "string"}},
@@ -186,7 +193,10 @@ def build_default_tools() -> list[Tool]:
                 "(shipping, returns, warranty, privacy) to ground an answer.",
                 parameters={
                     "type": "object",
-                    "properties": {"query": {"type": "string"}, "k": {"type": "integer", "default": 3}},
+                    "properties": {
+                        "query": {"type": "string"},
+                        "k": {"type": "integer", "default": 3},
+                    },
                     "required": ["query"],
                 },
             ),
@@ -200,7 +210,10 @@ def build_default_tools() -> list[Tool]:
                 parameters={
                     "type": "object",
                     "properties": {
-                        "destination_country": {"type": "string", "description": "ISO country code, e.g. US, DE."},
+                        "destination_country": {
+                            "type": "string",
+                            "description": "ISO country code, e.g. US, DE.",
+                        },
                         "items": {
                             "type": "array",
                             "items": {
@@ -212,7 +225,11 @@ def build_default_tools() -> list[Tool]:
                                 "required": ["product_id"],
                             },
                         },
-                        "method": {"type": "string", "enum": ["standard", "express"], "default": "standard"},
+                        "method": {
+                            "type": "string",
+                            "enum": ["standard", "express"],
+                            "default": "standard",
+                        },
                     },
                     "required": ["destination_country", "items"],
                 },

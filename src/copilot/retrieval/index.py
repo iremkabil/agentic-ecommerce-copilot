@@ -16,9 +16,9 @@ so search is a single matrix-vector multiply plus an argsort.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
@@ -84,7 +84,7 @@ class VectorIndex:
         )
 
     @classmethod
-    def load(cls, directory: str | Path, embedder: Embedder) -> "VectorIndex":
+    def load(cls, directory: str | Path, embedder: Embedder) -> VectorIndex:
         directory = Path(directory)
         index = cls(embedder)
         docs = json.loads((directory / "documents.json").read_text(encoding="utf-8"))

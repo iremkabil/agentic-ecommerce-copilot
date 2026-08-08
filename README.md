@@ -1,104 +1,155 @@
 # Agentic E-commerce Support & Sales Copilot
 
-An LLM-powered customer-support and sales **agent** (not a scripted chatbot) for a
-fictional store. It classifies intent, calls tools, retrieves product/policy knowledge,
-drafts orders, enforces guardrails, and escalates to a human when needed.
+An LLM-powered customer-support and sales **agent** (not a scripted chatbot) for a fictional
+stationery store. It classifies intent, calls tools to search products and retrieve policy,
+drafts orders while validating missing fields, blocks or escalates unsafe/out-of-policy input,
+hands off to a human when it should, and measures all of that with a 6-metric evaluation suite
+and an admin dashboard.
 
 > ⚠️ **Synthetic-data & ethics notice.** This project uses **100% synthetic, fabricated
 > data**. There is no real brand, customer, order, or personal data anywhere in this
 > repository. The brand "Paperbloom" is invented for demonstration only, and the agent
-> never charges a real payment method.
+> never charges a real payment method — orders only ever reach a `draft`/`confirmed` state.
 
-See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design, roadmap, and evaluation plan.
+See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design doc: architecture rationale,
+database schema, guardrail design, and the day-by-day build log this project followed.
 
 ---
 
-## Status
+## Why this isn't a chatbot
 
-🚧 In development, following the 14-day build timeline in
-[PROJECT_PLAN.md §11](./PROJECT_PLAN.md#11-development-timeline-1014-days) (full V1/V2 scope in
-[§10 Roadmap](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2)). **✅ MVP complete (Day 5).** Currently
-on **Day 12 of 14** — Days 13–14 (tests/tooling polish, README/demo polish) remain. A
-working agent answers grounded questions end to end via `POST /chat`.
-- **Day 1:** scaffold, configuration, Docker, health check.
-- **Day 2:** SQLAlchemy models (10 tables), DB session, seed script, synthetic data.
-- **Day 3:** retrieval layer (pluggable embedder + vector index) and product/FAQ tools.
-- **Day 4:** deterministic `shipping_calculator`, `get_order_status`, and the `llm/` interface.
-- **Day 5:** the agent loop (native tool calling), system prompt, tool registry, and the
-  `POST /chat` endpoint with full conversation + tool + telemetry logging. **MVP done.**
-- **Day 6:** Streamlit demo chat UI (`dashboard/chat.py`) — talks to `POST /chat`, keeps
-  `conversation_id` in session state across turns, and shows each turn's tool calls in an
-  expander. API base URL is configurable (`COPILOT_API_BASE_URL`, editable in the sidebar).
-- **Day 7:** intent classifier (`agent/intent.py`) — a single few-shot LLM call returns a
-  label + confidence for every user message ahead of the tool-calling loop; low-confidence
-  predictions are flagged explicitly (`COPILOT_INTENT_CONFIDENCE_THRESHOLD`) for Day 9's
-  handoff logic. Wired into `handle_chat`, so every user message is logged with its
-  `intent`/`intent_confidence` in the `messages` table.
-- **Day 8:** order flow — `OrderDraft` schema (`agent/schemas.py`) plus three new tools
-  (`tools/orders.py`): `extract_order_fields`, `detect_missing_fields`, `create_order_draft`.
-  Slot filling needs no special-case state machine — the model re-states what it already
-  knows from its own conversation history each turn; only `create_order_draft` touches the
-  DB, persisting an `Order` + `OrderItem`s + `Customer` once every required field is present.
-- **Day 9:** rule-based input/output guardrails (`guardrails/input_rules.py`,
-  `output_rules.py`) and an escalation matrix (`guardrails/escalation.py`) wired into
-  `handle_chat`: jailbreak/PII/abuse/out-of-scope messages are blocked or escalated before
-  the classifier or orchestrator ever run; drafted replies are checked for ungrounded
-  prices/policy promises and prompt/tool-name leakage before they ship. `tools/handoff.py`
-  persists `HandoffCase`s (and marks the conversation `handed_off`) both automatically
-  (explicit human request, low-confidence intent, escalating input rules) and via a
-  `human_handoff` tool the model can call itself for complaints/uncovered policy questions.
-  Every guardrail decision is logged to `guardrail_events`.
-- **Day 10:** evaluation harness (metrics 1-3) — `data/test_cases.csv` (71 hand-authored,
-  grounded rows across all 9 intents plus jailbreak/PII/abuse/prohibited-advice adversarial
-  cases) + `eval/metrics.py` (intent accuracy/macro-F1, tool-selection precision/recall/
-  micro-F1, order completion rate — all pure functions) + `eval/run_eval.py`, which drives
-  the *live* `handle_chat` pipeline per row and prints a summary table
-  (`python -m eval.run_eval`).
-- **Day 11:** metrics 4-6 — missing-field detection precision/recall (a new
-  `expected_missing_fields` CSV column, validated offline against `detect_missing_fields`
-  for every place_order case), guardrail block rate / false-positive rate (benign vs.
-  adversarial, via `evaluate_input` — still 0 mismatches across all 71 rows), and handoff
-  precision/recall (via a real `HandoffCase` DB lookup per case). `eval/run_eval.py` now
-  persists every run: one `eval_runs` row (all 6 metrics as JSON) + one `eval_results` row
-  per case (`python -m eval.run_eval --run-name my-run`).
-- **Day 12:** Streamlit admin dashboard (`dashboard/app.py`) — conversations (with per-
-  transcript drill-down), intent distribution, tool usage, the handoff queue, guardrail
-  events, and the latest eval run's metrics with a trend chart across runs. Reads the DB
-  directly (`dashboard/queries.py`, a pure query layer, unit-tested the same way as every
-  other DB-touching module). Chart color follows a job-based rule: intent/tool counts are
-  nominal categories so they get one sequential hue; the guardrail action breakdown is real
-  status data (allow/block/escalate) so it gets the reserved status palette instead.
+A plain chatbot maps a prompt to a single LLM completion. Each piece below is a separate,
+independently testable component — that separation is what makes the system *measurable*
+instead of a vibe-check.
 
-Try it:
+| Capability | Where |
+|---|---|
+| Intent classification + routing | `agent/intent.py` — few-shot LLM call, confidence-thresholded |
+| Tool calling / function calling | `agent/orchestrator.py` — native tool-calling loop, 9 tools |
+| RAG (product + FAQ/policy retrieval) | `retrieval/` — pluggable embedder + vector index |
+| Slot filling / order drafting | `tools/orders.py` — Pydantic-validated, no state machine needed |
+| Input + output guardrails | `guardrails/` — rule-based, block/escalate before and after the model |
+| Human handoff | `tools/handoff.py` + `guardrails/escalation.py` |
+| Evaluation harness | `eval/` — 6 metrics, persisted per run |
+| Dashboard + logging | `dashboard/app.py` — every decision is a row in the database |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    U["Client (demo chat UI / API caller)"] -->|"POST /chat {conversation_id, message}"| API
+
+    subgraph API["FastAPI service (agent/service.py: handle_chat)"]
+        IG["1 . Input guardrail\nguardrails/input_rules.py"]
+        IC["2 . Intent classifier\nagent/intent.py"]
+        ORCH["3 . Tool-calling orchestrator\nagent/orchestrator.py"]
+        OG["4 . Output guardrail\nguardrails/output_rules.py"]
+        LOG["5 . Persist: messages, tool calls,\nguardrail events, handoffs"]
+
+        IG -->|allow| IC
+        IG -->|block / escalate: stop early| LOG
+        IC -->|human_request or low confidence: stop early| LOG
+        IC -->|else| ORCH
+        ORCH --> OG --> LOG
+    end
+
+    ORCH <--> TOOLS["product_search · get_product_details · faq_retrieval\nshipping_calculator · get_order_status\nextract_order_fields · detect_missing_fields · create_order_draft\nhuman_handoff"]
+    TOOLS <--> DB[("SQLite / Postgres\n+ numpy vector index")]
+
+    LOG --> RESP["ChatResponse: reply + tool steps"]
+    RESP --> U
+    DB -.->|reads directly| DASH["Streamlit admin dashboard\ndashboard/app.py"]
+```
+
+Every stage is independently testable and independently measurable (see
+[Evaluation](#evaluation) below) — that separation is the actual engineering content of this
+project, not the specific choice of LLM.
+
+## Features
+
+- **Grounded product & policy answers.** `product_search`/`get_product_details` and
+  `faq_retrieval` are the only source of facts the model is allowed to state; the output
+  guardrail blocks a reply that states a price or policy promise not present in this turn's
+  tool results.
+- **Order drafting with no hand-rolled state machine.** `extract_order_fields` →
+  `detect_missing_fields` → `create_order_draft`. The model re-states what it already knows
+  from its own conversation history each turn; the server never keeps a partial draft.
+- **Deterministic shipping quotes.** `shipping_calculator` is a plain rules table, not an LLM
+  guess — same inputs always produce the same cost and ETA.
+- **Guardrails on both sides of the model.** Input: jailbreak/prompt-injection, PII
+  over-collection, prohibited advice, out-of-scope requests (block), abuse/threats (escalate).
+  Output: ungrounded prices, ungrounded policy promises, prompt/tool-name leakage, scope
+  violations.
+- **Human handoff, two ways.** Automatic (explicit request, low-confidence intent, an
+  escalating input rule) and model-initiated (`human_handoff` tool, for complaints or policy
+  questions `faq_retrieval` can't answer) — both create a `HandoffCase` and mark the
+  conversation `handed_off`.
+- **Everything logged, nothing inferred after the fact.** Every guardrail decision (including
+  *allow*), every tool call, every intent prediction is a row in the database as it happens —
+  the dashboard and eval harness both just read it back.
+- **Graceful degradation.** If the LLM provider is unreachable mid-turn, the agent falls back
+  to a safe reply (keeping any tool steps that already succeeded) instead of a raw 500.
+
+## Evaluation
+
+`eval/run_eval.py` drives the *live* agent through `data/test_cases.csv` — 71 hand-authored,
+grounded rows spanning all 9 intents plus adversarial cases (jailbreak, PII, abuse,
+prohibited-advice) — and computes:
+
+| # | Metric | What it measures |
+|---|---|---|
+| 1 | Intent accuracy + macro-F1 | exact match against the gold label, plus per-label F1 (intents are imbalanced) |
+| 2 | Tool-selection precision/recall/micro-F1 | did the agent call the tools the case actually needs |
+| 3 | Order completion rate | share of `place_order` cases that reach a valid, persisted draft |
+| 4 | Missing-field precision/recall | `detect_missing_fields` vs. each case's known gaps |
+| 5 | Guardrail block rate / false-positive rate | recall on the adversarial set vs. false-positive rate on the benign set |
+| 6 | Handoff precision/recall | escalated when it should, didn't when it shouldn't |
+
+Every run persists one `eval_runs` row (all 6 metrics as JSON) and one `eval_results` row per
+case, both readable from the admin dashboard.
 
 ```bash
-python -m copilot.db.seed --reset          # seed the demo data
-uvicorn copilot.api.main:app --reload      # needs a running LLM (Ollama or hosted)
-# POST http://localhost:8000/chat  {"message": "do you offer gift wrapping?"}
-
-streamlit run dashboard/chat.py            # demo chat UI, talks to the API above
-streamlit run dashboard/app.py             # admin dashboard, reads the DB directly
+python -m eval.run_eval --run-name my-run
 ```
+
+> **Numbers aren't published here on purpose.** This repo's dev environment has no LLM
+> connected, so no live run has produced real metrics to publish — and a portfolio README
+> that prints fabricated accuracy numbers is worse than no table at all. Run the command
+> above against a local Ollama model or a hosted endpoint (see Quickstart) and
+> `dashboard/app.py`'s Evaluation section will show real, current numbers immediately.
+
+## Screenshots
+
+The admin dashboard is fully demoable **without a live LLM**: `python -m copilot.db.seed
+--reset` seeds 14 products plus 6 illustrative conversations (a grounded answer, a completed
+order, a blocked jailbreak attempt, an escalated-abuse handoff, and an explicit human-request
+handoff) covering every chart on the page. Run `streamlit run dashboard/app.py` and
+`streamlit run dashboard/chat.py` and capture your own — this dev environment doesn't have a
+browser attached to generate them here.
+
+## Tech stack
+
+Python 3.11 · FastAPI · Streamlit + Altair · Pydantic v2 · SQLAlchemy (SQLite / Postgres) ·
+sentence-transformers (real embeddings) + numpy exact search, FAISS-ready · Docker.
+
+A hand-written native tool-calling loop, not a framework — the mechanic is the same one every
+agent framework wraps, written out plainly so it's easy to explain and to test.
 
 ## Quickstart (local)
 
 ```bash
-# 1. create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-
-# 2. install the package (with retrieval + dev extras)
+python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[retrieval,dev]"
-
-# 3. configure
 cp .env.example .env
+python -m copilot.db.seed --reset                      # 14 products, 3 customers, 6 demo conversations
+uvicorn copilot.api.main:app --reload                   # needs a running LLM (Ollama or hosted)
+pytest                                                  # 153 tests, fully offline
+```
 
-# 4. run the API
-uvicorn copilot.api.main:app --reload
-# -> open http://localhost:8000/health  and  http://localhost:8000/docs
-
-# 5. run the tests
-pytest
+```bash
+# in separate terminals, once the API is up
+streamlit run dashboard/chat.py     # demo chat UI  -> http://localhost:8501
+streamlit run dashboard/app.py      # admin dashboard (works even without a live LLM)
 ```
 
 ## Quickstart (Docker)
@@ -107,13 +158,56 @@ pytest
 cp .env.example .env
 docker compose up --build
 # API       -> http://localhost:8000/health
-# Dashboard -> http://localhost:8501   (admin dashboard: dashboard/app.py)
+# Dashboard -> http://localhost:8501
 ```
 
-## Tech stack
+## Project structure
 
-Python 3.11 · FastAPI · Streamlit · Pydantic v2 · SQLAlchemy (SQLite / Postgres) ·
-sentence-transformers + FAISS · Docker.
+```
+agentic-ecommerce-copilot/
+├── PROJECT_PLAN.md            # full design doc + day-by-day build log
+├── pyproject.toml
+├── .pre-commit-config.yaml
+├── docker-compose.yml · Dockerfile
+│
+├── data/
+│   ├── products.json · faq.md · policies.md
+│   └── test_cases.csv         # 71-row labeled eval set
+│
+├── src/copilot/
+│   ├── config.py           # typed settings (pydantic-settings)
+│   ├── db/                 # SQLAlchemy models, session, seed script
+│   ├── llm/                # provider-agnostic client + OpenAI-compatible impl
+│   ├── retrieval/          # embedder protocol + vector index + markdown chunking
+│   ├── tools/               # product/FAQ/shipping/order-status/orders/handoff
+│   ├── guardrails/          # input rules, output rules, escalation matrix
+│   ├── agent/                # system prompt, intent, tool registry, orchestrator, service
+│   └── api/                  # FastAPI app: /health, /chat
+│
+├── dashboard/
+│   ├── chat.py                # demo chat UI
+│   ├── app.py                 # admin dashboard
+│   └── queries.py             # pure DB query layer behind the dashboard
+│
+├── eval/
+│   ├── metrics.py             # the 6 metrics, pure functions
+│   └── run_eval.py            # drives the live agent + persists results
+│
+└── tests/                      # 153 tests, one file per module above, fully offline
+```
+
+## Roadmap
+
+- [x] **MVP** — agent loop, tools, RAG, `POST /chat`, logging (Days 1-5)
+- [x] **V1** — intent classifier, order drafting, guardrails + handoff, 6-metric eval harness,
+      admin dashboard, repo-wide lint/pre-commit, graceful LLM-outage handling (Days 6-14)
+- [ ] **V2 (future)** — LLM-as-judge for answer quality, multilingual support, streaming
+      responses, Postgres + Alembic + a deployed demo, a CI regression gate on eval metrics,
+      prompt-injection red-team set expansion
+
+See [PROJECT_PLAN.md §10](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2) for the full V2 list and
+[§11](./PROJECT_PLAN.md#11-development-timeline-1014-days) for the day-by-day log of how V1
+was actually built.
 
 ## License
 

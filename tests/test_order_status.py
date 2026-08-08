@@ -20,8 +20,14 @@ def session() -> Session:
         cust = Customer(name="Dana", email="dana@example.com")
         s.add(cust)
         s.flush()
-        order = Order(id="ord_test_1", customer_id=cust.id, status="confirmed",
-                      subtotal=10.0, total=14.9, shipping_cost=4.9)
+        order = Order(
+            id="ord_test_1",
+            customer_id=cust.id,
+            status="confirmed",
+            subtotal=10.0,
+            total=14.9,
+            shipping_cost=4.9,
+        )
         order.items = [OrderItem(product_id="PB-X-1", quantity=2, unit_price=5.0)]
         s.add(order)
         s.commit()

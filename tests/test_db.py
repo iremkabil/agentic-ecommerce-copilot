@@ -12,8 +12,18 @@ import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from copilot.db.models import Base, Customer, Order, OrderItem, Product
-from copilot.db.seed import load_products
+from copilot.db.models import (
+    Base,
+    Conversation,
+    Customer,
+    GuardrailEvent,
+    HandoffCase,
+    Message,
+    Order,
+    OrderItem,
+    Product,
+)
+from copilot.db.seed import _seed_customers_and_orders, _seed_demo_conversations, load_products
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
@@ -30,9 +40,14 @@ def session() -> Session:
 def test_product_roundtrip_with_json_columns(session: Session):
     session.add(
         Product(
-            id="PB-TST-001", sku="PB-TST-001", name="Test Notebook",
-            category="notebooks", price=9.99, stock=5,
-            attributes={"pages": 100, "size": "A5"}, tags=["test", "notebook"],
+            id="PB-TST-001",
+            sku="PB-TST-001",
+            name="Test Notebook",
+            category="notebooks",
+            price=9.99,
+            stock=5,
+            attributes={"pages": 100, "size": "A5"},
+            tags=["test", "notebook"],
         )
     )
     session.commit()
@@ -83,3 +98,44 @@ def test_load_products_is_idempotent(session: Session):
     session.commit()
     count = session.scalar(select(func.count()).select_from(Product))
     assert count == 14
+
+
+def test_seed_demo_conversations_creates_a_believable_mix(session: Session):
+    """The Day 14 demo-conversation seed (dashboard/screenshot data) covers a
+    grounded answer, a completed order, a block, and two escalations -- one
+    row of each dashboard category, so the admin dashboard has something to
+    show without a live LLM."""
+    load_products(session, DATA_DIR / "products.json")
+    customers = _seed_customers_and_orders(session)
+    _seed_demo_conversations(session, customers)
+    session.commit()
+
+    conversations = session.scalars(select(Conversation)).all()
+    assert len(conversations) == 6
+    assert {c.status for c in conversations} == {"active", "handed_off"}
+
+    # every product_id referenced in the demo tool_output blobs is real
+    referenced_ids = set()
+    for msg in session.scalars(select(Message).where(Message.tool_output.is_not(None))).all():
+        for item in msg.tool_output.get("results", msg.tool_output.get("items", [])):
+            if isinstance(item, dict) and "product_id" in item:
+                referenced_ids.add(item["product_id"])
+            elif isinstance(item, dict) and "id" in item:
+                referenced_ids.add(item["id"])
+    known_ids = set(session.scalars(select(Product.id)).all())
+    assert referenced_ids <= known_ids
+    assert referenced_ids  # sanity: the loop above actually found some
+
+    guardrail_actions = {g.action for g in session.scalars(select(GuardrailEvent)).all()}
+    assert guardrail_actions == {"allow", "block", "escalate"}
+
+    handoffs = session.scalars(select(HandoffCase)).all()
+    assert {h.trigger_type for h in handoffs} == {"guardrail", "user_request"}
+    assert all(h.status == "open" for h in handoffs)
+
+    # blocked/escalated turns never got a classified intent ("stop early")
+    blocked_user_messages = session.scalars(
+        select(Message).where(Message.guardrail_flag.is_not(None))
+    ).all()
+    assert blocked_user_messages
+    assert all(m.intent is None for m in blocked_user_messages)

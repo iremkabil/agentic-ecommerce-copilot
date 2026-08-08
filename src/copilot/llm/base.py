@@ -71,3 +71,15 @@ class LLMClient(Protocol):
         tools: list[ToolSpec] | None = None,
         temperature: float | None = None,
     ) -> LLMResponse: ...
+
+
+class LLMProviderError(Exception):
+    """Raised when a provider implementation can't get a response at all
+    (network failure, timeout, non-2xx status) -- as opposed to a response
+    that arrived but was malformed, which callers handle themselves.
+
+    Kept provider-agnostic on purpose: callers (agent/intent.py,
+    agent/orchestrator.py) catch this one type and degrade gracefully,
+    without needing to know whether the concrete client is httpx-based, an
+    SDK, or something else entirely.
+    """

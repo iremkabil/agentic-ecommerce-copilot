@@ -18,7 +18,7 @@ def split_markdown_sections(text: str, heading_prefix: str = "### ") -> list[tup
         if line.startswith(heading_prefix):
             if title is not None:
                 sections.append((title, "\n".join(buffer).strip()))
-            title = line[len(heading_prefix):].strip()
+            title = line[len(heading_prefix) :].strip()
             buffer = []
         elif title is not None:
             buffer.append(line)

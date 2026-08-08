@@ -34,7 +34,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 def _utcnow() -> dt.datetime:
     """Timezone-aware UTC timestamp used as the default for created_at fields."""
-    return dt.datetime.now(dt.timezone.utc)
+    return dt.datetime.now(dt.UTC)
 
 
 def _uuid() -> str:

@@ -13,7 +13,7 @@ from copilot.agent.orchestrator import run_agent
 from copilot.agent.registry import build_default_tools
 from copilot.db.models import Base
 from copilot.db.seed import load_products
-from copilot.llm.base import LLMResponse, ToolCall
+from copilot.llm.base import LLMProviderError, LLMResponse, ToolCall
 from copilot.llm.providers import ScriptedLLMClient
 from copilot.retrieval.embed import HashingEmbedder
 from copilot.tools.faq_retrieval import build_faq_index
@@ -41,7 +41,11 @@ def ctx() -> AgentContext:
 def test_agent_executes_tool_then_answers(ctx):
     llm = ScriptedLLMClient(
         [
-            LLMResponse(tool_calls=[ToolCall(id="1", name="product_search", arguments={"query": "bamboo organizer"})]),
+            LLMResponse(
+                tool_calls=[
+                    ToolCall(id="1", name="product_search", arguments={"query": "bamboo organizer"})
+                ]
+            ),
             LLMResponse(content="The Bamboo Desk Organizer is $29.00 and in stock."),
         ]
     )
@@ -64,12 +68,23 @@ def test_agent_executes_tool_then_answers(ctx):
 def test_agent_feeds_tool_result_back_to_model(ctx):
     llm = ScriptedLLMClient(
         [
-            LLMResponse(tool_calls=[ToolCall(id="1", name="faq_retrieval", arguments={"query": "returns and refunds"})]),
+            LLMResponse(
+                tool_calls=[
+                    ToolCall(
+                        id="1", name="faq_retrieval", arguments={"query": "returns and refunds"}
+                    )
+                ]
+            ),
             LLMResponse(content="You can return unused items within 30 days."),
         ]
     )
-    run_agent("what's your return policy?", llm=llm, tools=build_default_tools(),
-              ctx=ctx, system_prompt="test")
+    run_agent(
+        "what's your return policy?",
+        llm=llm,
+        tools=build_default_tools(),
+        ctx=ctx,
+        system_prompt="test",
+    )
     # after the tool turn, the second llm call must have seen a role="tool" message
     second_call_roles = [m.role for m in llm.calls[1]["messages"]]
     assert "tool" in second_call_roles
@@ -78,11 +93,19 @@ def test_agent_feeds_tool_result_back_to_model(ctx):
 def test_agent_stops_at_max_steps(ctx):
     # model that always wants another tool call -> must not loop forever
     always_tool = [
-        LLMResponse(tool_calls=[ToolCall(id=str(i), name="product_search", arguments={"query": "pen"})])
+        LLMResponse(
+            tool_calls=[ToolCall(id=str(i), name="product_search", arguments={"query": "pen"})]
+        )
         for i in range(5)
     ]
-    result = run_agent("hi", llm=ScriptedLLMClient(always_tool), tools=build_default_tools(),
-                       ctx=ctx, system_prompt="test", max_steps=2)
+    result = run_agent(
+        "hi",
+        llm=ScriptedLLMClient(always_tool),
+        tools=build_default_tools(),
+        ctx=ctx,
+        system_prompt="test",
+        max_steps=2,
+    )
     assert len(result.steps) == 2  # exactly max_steps tool executions
     assert "human agent" in result.reply.lower()  # safe fallback
 
@@ -97,3 +120,39 @@ def test_agent_handles_unknown_tool(ctx):
     result = run_agent("hi", llm=llm, tools=build_default_tools(), ctx=ctx, system_prompt="test")
     assert result.steps[0].tool_output["error"] == "unknown_tool"
     assert result.reply == "Sorry about that."
+
+
+class _FlakyLLM:
+    """Returns queued responses, then raises LLMProviderError on the next call."""
+
+    def __init__(self, responses: list[LLMResponse]) -> None:
+        self._responses = list(responses)
+
+    def chat(self, messages, tools=None, temperature=None):
+        if not self._responses:
+            raise LLMProviderError("connection refused")
+        return self._responses.pop(0)
+
+
+def test_agent_degrades_gracefully_when_provider_fails_on_first_call(ctx):
+    result = run_agent(
+        "hi", llm=_FlakyLLM([]), tools=build_default_tools(), ctx=ctx, system_prompt="test"
+    )
+    assert result.steps == []
+    assert "human agent" in result.reply.lower()
+
+
+def test_agent_keeps_prior_steps_when_provider_fails_mid_turn(ctx):
+    llm = _FlakyLLM(
+        [
+            LLMResponse(
+                tool_calls=[ToolCall(id="1", name="product_search", arguments={"query": "pen"})]
+            )
+        ]
+    )
+    result = run_agent("hi", llm=llm, tools=build_default_tools(), ctx=ctx, system_prompt="test")
+    # the first tool call succeeded and is preserved even though the follow-up
+    # llm.chat() call (to react to the tool result) then failed
+    assert len(result.steps) == 1
+    assert result.steps[0].tool_name == "product_search"
+    assert "human agent" in result.reply.lower()

@@ -23,7 +23,7 @@ import re
 
 from pydantic import BaseModel
 
-from copilot.llm.base import ChatMessage, LLMClient
+from copilot.llm.base import ChatMessage, LLMClient, LLMProviderError
 
 # Matches PROJECT_PLAN.md §2 "Intents:" list.
 INTENT_LABELS: tuple[str, ...] = (
@@ -127,15 +127,24 @@ def classify_intent(
     ``low_confidence`` is surfaced explicitly (rather than left for callers to
     threshold themselves) because Day 9 guardrails/handoff need to bias a
     low-confidence turn toward a human -- see PROJECT_PLAN.md §3 step 3.
+
+    If the provider itself is unreachable (``LLMProviderError``), that's
+    treated exactly like an unparseable reply: UNKNOWN_INTENT at confidence
+    0.0, which is always low_confidence -- a network blip degrades to "route
+    this to a human," not a crashed request.
     """
-    response = llm.chat(
-        [
-            ChatMessage(role="system", content=_SYSTEM_PROMPT),
-            ChatMessage(role="user", content=message),
-        ],
-        temperature=0.0,
-    )
-    label, confidence = _parse_intent_content(response.content)
+    try:
+        response = llm.chat(
+            [
+                ChatMessage(role="system", content=_SYSTEM_PROMPT),
+                ChatMessage(role="user", content=message),
+            ],
+            temperature=0.0,
+        )
+    except LLMProviderError:
+        label, confidence = UNKNOWN_INTENT, 0.0
+    else:
+        label, confidence = _parse_intent_content(response.content)
     return IntentResult(
         label=label,
         confidence=confidence,
