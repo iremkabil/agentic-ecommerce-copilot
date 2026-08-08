@@ -18,8 +18,8 @@ See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design, roadmap, and e
 🚧 In development, following the 14-day build timeline in
 [PROJECT_PLAN.md §11](./PROJECT_PLAN.md#11-development-timeline-1014-days) (full V1/V2 scope in
 [§10 Roadmap](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2)). **✅ MVP complete (Day 5).** Currently
-on **Day 11 of 14** — Days 12–14 (admin dashboard, tests/tooling polish, README/demo polish)
-remain. A working agent answers grounded questions end to end via `POST /chat`.
+on **Day 12 of 14** — Days 13–14 (tests/tooling polish, README/demo polish) remain. A
+working agent answers grounded questions end to end via `POST /chat`.
 - **Day 1:** scaffold, configuration, Docker, health check.
 - **Day 2:** SQLAlchemy models (10 tables), DB session, seed script, synthetic data.
 - **Day 3:** retrieval layer (pluggable embedder + vector index) and product/FAQ tools.
@@ -61,6 +61,13 @@ remain. A working agent answers grounded questions end to end via `POST /chat`.
   precision/recall (via a real `HandoffCase` DB lookup per case). `eval/run_eval.py` now
   persists every run: one `eval_runs` row (all 6 metrics as JSON) + one `eval_results` row
   per case (`python -m eval.run_eval --run-name my-run`).
+- **Day 12:** Streamlit admin dashboard (`dashboard/app.py`) — conversations (with per-
+  transcript drill-down), intent distribution, tool usage, the handoff queue, guardrail
+  events, and the latest eval run's metrics with a trend chart across runs. Reads the DB
+  directly (`dashboard/queries.py`, a pure query layer, unit-tested the same way as every
+  other DB-touching module). Chart color follows a job-based rule: intent/tool counts are
+  nominal categories so they get one sequential hue; the guardrail action breakdown is real
+  status data (allow/block/escalate) so it gets the reserved status palette instead.
 
 Try it:
 
@@ -70,6 +77,7 @@ uvicorn copilot.api.main:app --reload      # needs a running LLM (Ollama or host
 # POST http://localhost:8000/chat  {"message": "do you offer gift wrapping?"}
 
 streamlit run dashboard/chat.py            # demo chat UI, talks to the API above
+streamlit run dashboard/app.py             # admin dashboard, reads the DB directly
 ```
 
 ## Quickstart (local)
@@ -99,7 +107,7 @@ pytest
 cp .env.example .env
 docker compose up --build
 # API       -> http://localhost:8000/health
-# Dashboard -> http://localhost:8501   (placeholder until Day 12)
+# Dashboard -> http://localhost:8501   (admin dashboard: dashboard/app.py)
 ```
 
 ## Tech stack
