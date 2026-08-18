@@ -130,7 +130,7 @@ browser attached to generate them here.
 ## Tech stack
 
 Python 3.11 · FastAPI · Streamlit + Altair · Pydantic v2 · SQLAlchemy (SQLite / Postgres) ·
-sentence-transformers (real embeddings) + numpy exact search, FAISS-ready · Docker.
+sentence-transformers (real embeddings) + numpy exact cosine search · Docker.
 
 A hand-written native tool-calling loop, not a framework — the mechanic is the same one every
 agent framework wraps, written out plainly so it's easy to explain and to test.
