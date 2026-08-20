@@ -78,9 +78,8 @@ def run_agent(
     for _ in range(max_steps):
         try:
             response = llm.chat(messages, tools=tool_specs)
-        except LLMProviderError:
-            # provider unreachable mid-turn -- degrade to the same safe
-            # fallback as a stuck loop, keeping whatever steps already ran
+        except LLMProviderError as exc:
+            print("LLMProviderError:", exc)
             reply = _FALLBACK_REPLY
             break
         prompt_tokens += response.usage.prompt_tokens
