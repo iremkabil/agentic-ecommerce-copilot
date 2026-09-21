@@ -12,7 +12,8 @@ and an admin dashboard.
 > never charges a real payment method — orders only ever reach a `draft`/`confirmed` state.
 
 See **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** for the full design doc: architecture rationale,
-database schema, guardrail design, and the day-by-day build log this project followed.
+database schema, guardrail design, evaluation design, and the decisions that changed during
+the build.
 
 ---
 
@@ -165,7 +166,7 @@ docker compose up --build
 
 ```
 agentic-ecommerce-copilot/
-├── PROJECT_PLAN.md            # full design doc + day-by-day build log
+├── PROJECT_PLAN.md            # full design doc (architecture, schema, eval, decisions)
 ├── pyproject.toml
 ├── .pre-commit-config.yaml
 ├── docker-compose.yml · Dockerfile
@@ -198,16 +199,17 @@ agentic-ecommerce-copilot/
 
 ## Roadmap
 
-- [x] **MVP** — agent loop, tools, RAG, `POST /chat`, logging (Days 1-5)
+- [x] **MVP** — agent loop, tools, RAG, `POST /chat`, logging
 - [x] **V1** — intent classifier, order drafting, guardrails + handoff, 6-metric eval harness,
-      admin dashboard, repo-wide lint/pre-commit, graceful LLM-outage handling (Days 6-14)
+      admin dashboard, repo-wide lint/pre-commit, graceful LLM-outage handling
 - [ ] **V2 (future)** — LLM-as-judge for answer quality, multilingual support, streaming
       responses, Postgres + Alembic + a deployed demo, a CI regression gate on eval metrics,
       prompt-injection red-team set expansion
 
-See [PROJECT_PLAN.md §10](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2) for the full V2 list and
-[§11](./PROJECT_PLAN.md#11-development-timeline-1014-days) for the day-by-day log of how V1
-was actually built.
+See [PROJECT_PLAN.md §10](./PROJECT_PLAN.md#10-roadmap-mvp--v1--v2) for the full V2 list,
+[§11](./PROJECT_PLAN.md#11-build-order) for the build order, and
+[§13](./PROJECT_PLAN.md#13-design-decisions-revisited) for the design decisions that changed
+along the way.
 
 ## License
 
