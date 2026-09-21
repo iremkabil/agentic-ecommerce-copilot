@@ -112,21 +112,31 @@ def _exec_extract_order_fields(args: dict, ctx: AgentContext) -> dict:
     return draft.model_dump()
 
 
+def _draft_arg(args: dict) -> tuple[OrderDraft | None, dict | None]:
+    """Parse the ``draft`` argument, treating an absent one as an empty draft.
+
+    An omitted, null, or ``{}`` draft is a legitimate question ("what do you
+    still need from me?"), not a malformed call -- it parses to an empty
+    ``OrderDraft`` so the answer is the list of required fields rather than an
+    argument error. Anything else non-dict is still a hard error.
+    """
+    raw = args.get("draft")
+    return _parse_draft({} if raw is None else raw)
+
+
 def _exec_detect_missing_fields(args: dict, ctx: AgentContext) -> dict:
-    if not args.get("draft"):
-        return {"error": "missing_required_argument", "argument": "draft"}
-    draft, error = _parse_draft(args["draft"])
+    draft, error = _draft_arg(args)
     if error:
         return error
     return {"missing_fields": detect_missing_fields(draft)}
 
 
 def _exec_create_order_draft(args: dict, ctx: AgentContext) -> dict:
-    if not args.get("draft"):
-        return {"error": "missing_required_argument", "argument": "draft"}
-    draft, error = _parse_draft(args["draft"])
+    draft, error = _draft_arg(args)
     if error:
         return error
+    # An incomplete draft comes back as missing_required_fields + the field list,
+    # which tells the model what to ask for; an argument error would not.
     return create_order_draft(ctx.session, draft, conversation_id=ctx.conversation_id)
 
 

@@ -144,7 +144,7 @@ pip install -e ".[retrieval,dev]"
 cp .env.example .env
 python -m copilot.db.seed --reset                      # 14 products, 3 customers, 6 demo conversations
 uvicorn copilot.api.main:app --reload                   # needs a running LLM (Ollama or hosted)
-pytest                                                  # 153 tests, fully offline
+pytest                                                  # 160 tests, fully offline
 ```
 
 ```bash
@@ -194,7 +194,7 @@ agentic-ecommerce-copilot/
 │   ├── metrics.py             # the 6 metrics, pure functions
 │   └── run_eval.py            # drives the live agent + persists results
 │
-└── tests/                      # 153 tests, one file per module above, fully offline
+└── tests/                      # 160 tests, one file per module above, fully offline
 ```
 
 ## Roadmap

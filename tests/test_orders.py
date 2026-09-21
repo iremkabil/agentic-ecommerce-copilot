@@ -266,3 +266,40 @@ def test_agent_creates_the_order_once_complete(ctx):
     order = ctx.session.get(Order, create_result["order_id"])
     assert order is not None
     assert order.conversation_id == "conv-order-flow"
+
+
+# --- registry executors: the draft argument ---------------------------------
+
+
+def _tool(name):
+    return next(t for t in build_default_tools() if t.spec.name == name)
+
+
+@pytest.mark.parametrize("args", [{"draft": {}}, {}, {"draft": None}])
+def test_detect_missing_fields_executor_treats_an_empty_draft_as_empty(ctx, args):
+    """An empty draft is a valid question, not a malformed call.
+
+    A model that asks "what do you need from me?" before extracting anything
+    should get the list of required fields back, not an argument error.
+    """
+    result = _tool("detect_missing_fields").func(args, ctx)
+    assert result["missing_fields"] == [
+        "items",
+        "customer_name",
+        "customer_email",
+        "shipping_address_line",
+        "shipping_country",
+    ]
+
+
+def test_create_order_draft_executor_reports_missing_fields_for_an_empty_draft(ctx):
+    result = _tool("create_order_draft").func({"draft": {}}, ctx)
+    assert result["error"] == "missing_required_fields"
+    assert "customer_email" in result["missing_fields"]
+    assert ctx.session.scalar(select(Order)) is None
+
+
+@pytest.mark.parametrize("bad", ["a draft", [], 3])
+def test_draft_executors_still_reject_a_non_object_draft(ctx, bad):
+    assert _tool("detect_missing_fields").func({"draft": bad}, ctx)["error"] == "invalid_draft"
+    assert _tool("create_order_draft").func({"draft": bad}, ctx)["error"] == "invalid_draft"
