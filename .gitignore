@@ -31,3 +31,8 @@ env/
 .DS_Store
 .idea/
 .vscode/
+
+# Local tooling notes (kept on disk, not part of the project)
+.claude/
+CLAUDE.md
+AGENTS.md
